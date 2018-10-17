@@ -83,25 +83,21 @@ contract RSAAccumulator {
         uint256[NlengthIn32ByteLimbs] z, 
         uint256 r)
     public 
-    // view 
+    view 
     returns (bool isValid) {
         uint256[NlengthIn32ByteLimbs] memory nReadOnce = N;
         uint256[NlengthIn32ByteLimbs] memory h = modularExp(emptyAccumulator, mapCoinToPrime(_coinID), nReadOnce);
         uint256 B = mapHashToPrime(keccak256(abi.encodePacked(h, z))); // no mod N due to size difference
         uint256[NlengthIn32ByteLimbs] memory b_B = modularExp(b, B, nReadOnce);
         uint256[NlengthIn32ByteLimbs] memory h_R = modularExp(h, r, nReadOnce);
-        uint256[NlengthIn32ByteLimbs] memory lhs = mulMod(b_B, h_R, nReadOnce);
-        for (uint256 i = 0; i < NlengthIn32ByteLimbs; i++) {
-            if (lhs[i] != z[i]) {
-                emit DebugEvent(lhs[i], false);
-                emit DebugEvent(z[i], true);
-                return false;
-            }
+        uint256[NlengthIn32ByteLimbs] memory lhs = modularMul(b_B, h_R, nReadOnce);
+        if (compare(lhs, z) != 0) {
+            return false;
         }
         return true;
     }
 
-    function mulMod(
+    function modularMul(
         uint256[NlengthIn32ByteLimbs] _a,
         uint256[NlengthIn32ByteLimbs] _b,
         uint256[NlengthIn32ByteLimbs] _m)
@@ -111,12 +107,14 @@ contract RSAAccumulator {
         uint256[NlengthIn32ByteLimbs] memory aPlusB = modularExp(modularAdd(_a, _b, _m), 2, _m);
         uint256[NlengthIn32ByteLimbs] memory aMinusB = modularExp(modularSub(_a, _b, _m), 2, _m);
         uint256[NlengthIn32ByteLimbs] memory t = modularSub(aPlusB, aMinusB, _m);
+        return t;
+        // TODO
         // divide by 4
-        for (uint256 i = 0; i < NlengthIn32ByteLimbs - 1; i++) {
-            c[i] = (t[i] >> 2) | (t[i+1] << 254);
-        }
-        c[NlengthIn32ByteLimbs - 1] = t[NlengthIn32ByteLimbs - 1] >> 2;
-        return c;
+        // for (uint256 i = NlengthIn32ByteLimbs - 1; i > 0; i--) {
+        //     c[i] = (t[i] >> 2) | (t[i-1] << 254);
+        // }
+        // c[0] = t[0] >> 2;
+        // return c;
     }
 
     function compare(
