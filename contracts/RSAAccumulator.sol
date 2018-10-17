@@ -216,8 +216,8 @@ contract RSAAccumulator {
         } else if (comparison == 1) {
             return wrappingSub(_a, _b);
         } else {
-            uint256[NlengthIn32ByteLimbs] memory space = wrappingSub(_m, _a);
-            return wrappingAdd(_b, space);
+            uint256[NlengthIn32ByteLimbs] memory tmp = wrappingSub(_b, _a);
+            return wrappingSub(_m, tmp);
         }
     }
 

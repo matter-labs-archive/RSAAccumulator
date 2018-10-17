@@ -122,17 +122,26 @@ contract('RSA accumulator', async (accounts) => {
         for (let j = 0; j < 10; j++) {
             const NlengthIn32ByteLimbs = await contract.NlengthIn32ByteLimbs();
             const modulusLength = NlengthIn32ByteLimbs.toNumber() * 32
-            const a = new BN(crypto.randomBytes(modulusLength), "16", "be");
-            const b = new BN(crypto.randomBytes(modulusLength), "16", "be");
+            let a = new BN(crypto.randomBytes(modulusLength), "16", "be");
+            let b = new BN(crypto.randomBytes(modulusLength), "16", "be");
+
             const modulusLimbs = await contract.getN();
             const modulus = accumulatorToBN(modulusLimbs, NlengthIn32ByteLimbs.toNumber());
-            const comparison = a.add(b).cmp(modulus);
+
+            a = a.umod(modulus)
+            b = b.umod(modulus)
+
+            const comparison = (a.add(b)).cmp(modulus);
             const result = a.add(b).umod(modulus);
 
             const aLimbs = bnToAccumulator(a, NlengthIn32ByteLimbs.toNumber())
             
             const bLimbs = bnToAccumulator(b, NlengthIn32ByteLimbs.toNumber())
             const contractResultLimbs = await contract.modularAdd(aLimbs, bLimbs, modulusLimbs);
+            const contractResult = accumulatorToBN(contractResultLimbs, NlengthIn32ByteLimbs.toNumber());
+            assert(contractResult.cmp(modulus) === -1, "Result should always be less than modulus");
+
+            assert(contractResult.eq(result), "Modular add results are different for iteration " + j + " and comparison " + comparison);
 
             const resultString = result.toString(16);
             let resultLimbsString = contractResultLimbs[0].toString(16)
@@ -140,10 +149,33 @@ contract('RSA accumulator', async (accounts) => {
                 resultLimbsString = resultLimbsString + contractResultLimbs[i].toString(16).padStart(64, "0");
             }
             assert(resultString === resultLimbsString, "Invalid conversion to limbs for iteration " + j + " and comparison " + comparison);
+        }
+    })
 
+    it('test modular subtraction', async () => {
+        for (let j = 0; j < 10; j++) {
+            const NlengthIn32ByteLimbs = await contract.NlengthIn32ByteLimbs();
+            const modulusLength = NlengthIn32ByteLimbs.toNumber() * 32
+            
+            let a = new BN(crypto.randomBytes(modulusLength), "16", "be");
+            let b = new BN(crypto.randomBytes(modulusLength), "16", "be");
+
+            const modulusLimbs = await contract.getN();
+            const modulus = accumulatorToBN(modulusLimbs, NlengthIn32ByteLimbs.toNumber());
+
+            a = a.umod(modulus)
+            b = b.umod(modulus)
+
+            const result = a.add(modulus).sub(b).umod(modulus);
+
+            const aLimbs = bnToAccumulator(a, NlengthIn32ByteLimbs.toNumber())
+            
+            const bLimbs = bnToAccumulator(b, NlengthIn32ByteLimbs.toNumber())
+            const contractResultLimbs = await contract.modularSub(aLimbs, bLimbs, modulusLimbs);
             const contractResult = accumulatorToBN(contractResultLimbs, NlengthIn32ByteLimbs.toNumber());
+            assert(contractResult.cmp(modulus) === -1, "Result should always be less than modulus");
 
-            assert(contractResult.eq(result), "Addition results are different for iteration " + j);
+            assert(contractResult.eq(result), "Modular sub results are different for iteration " + j);
         }
     })
 
