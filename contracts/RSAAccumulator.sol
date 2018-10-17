@@ -66,7 +66,7 @@ contract RSAAccumulator {
 
     // this is kind of Wesolowski scheme. 'x' parameter is some exponent to show that (g^v)^x == A,
     // where g is an old generator (before inclusion of some coin), A is a final accumulator.
-    // A proof should be just 'r' and 'b', cause 'h' in this scheme is a new accumulator itself
+    // A proof should be just 'r' and 'b', cause 'z' in this scheme is a new accumulator itself
     function calculateProof(uint256 _coinID, uint256 x)
     public 
     view 
