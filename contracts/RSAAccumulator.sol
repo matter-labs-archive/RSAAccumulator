@@ -14,6 +14,7 @@ contract RSAAccumulator {
 
     event AccumulatorUpdated(uint256 indexed _coinID);
     event DebugEvent(uint256 _uint, bool _bool);
+    
     // constructor(uint256[NlengthIn32ByteLimbs] modulus) public {
     //     accumulator[NlengthIn32ByteLimbs - 1] = g;
     //     N = modulus;
@@ -113,13 +114,6 @@ contract RSAAccumulator {
         uint256[NlengthIn32ByteLimbs] memory aMinusB = modularExp(modularSub(_a, _b, _m), 2, _m);
         uint256[NlengthIn32ByteLimbs] memory t = modularSub(aPlusB, aMinusB, _m);
         return t;
-        // TODO
-        // divide by 4
-        // for (uint256 i = NlengthIn32ByteLimbs - 1; i > 0; i--) {
-        //     c[i] = (t[i] >> 2) | (t[i-1] << 254);
-        // }
-        // c[0] = t[0] >> 2;
-        // return c;
     }
 
     // cheat and just do two additions
@@ -129,7 +123,7 @@ contract RSAAccumulator {
     public
     view
     returns (uint256[NlengthIn32ByteLimbs] c) {
-        uint256[NlengthIn32ByteLimbs] memory t  = modularAdd(_a, _a, _m);
+        uint256[NlengthIn32ByteLimbs] memory t = modularAdd(_a, _a, _m);
         c = modularAdd(t, t, _m);
     }
 
