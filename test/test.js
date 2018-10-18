@@ -254,61 +254,59 @@ contract('RSA accumulator', async (accounts) => {
             const aLimbs = bnToAccumulator(a, NlengthIn32ByteLimbs.toNumber())
             
             const bLimbs = bnToAccumulator(b, NlengthIn32ByteLimbs.toNumber())
-            const contractResultLimbs = await contract.modularMul(aLimbs, bLimbs, modulusLimbs);
+            const contractResultLimbs = await contract.modularMul4(aLimbs, bLimbs, modulusLimbs);
             const contractResult = accumulatorToBN(contractResultLimbs, NlengthIn32ByteLimbs.toNumber());
             assert(contractResult.cmp(modulus) === -1, "Result should always be less than modulus");
             assert(contractResult.eq(result), "Intermediate mul results are different for iteration " + j);
         }
     })
 
-    // it('test modular multiplication', async () => {
-    //     for (let j = 0; j < 10; j++) {
-    //         const NlengthIn32ByteLimbs = await contract.NlengthIn32ByteLimbs();
-    //         const modulusLength = NlengthIn32ByteLimbs.toNumber() * 32
+    it('test modular multiplication by 4', async () => {
+        for (let j = 0; j < 10; j++) {
+            const NlengthIn32ByteLimbs = await contract.NlengthIn32ByteLimbs();
+            const modulusLength = NlengthIn32ByteLimbs.toNumber() * 32
             
-    //         let a = new BN(crypto.randomBytes(modulusLength), "16", "be");
-    //         let b = new BN(crypto.randomBytes(modulusLength), "16", "be");
+            let a = new BN(crypto.randomBytes(modulusLength), "16", "be");
+            let b = new BN(4);
 
-    //         const modulusLimbs = await contract.getN();
-    //         const modulus = accumulatorToBN(modulusLimbs, NlengthIn32ByteLimbs.toNumber());
+            const modulusLimbs = await contract.getN();
+            const modulus = accumulatorToBN(modulusLimbs, NlengthIn32ByteLimbs.toNumber());
 
-    //         a = a.umod(modulus)
-    //         b = b.umod(modulus)
+            a = a.umod(modulus)
+            b = b.umod(modulus)
 
-    //         const result = a.mul(b).umod(modulus);
+            const result = a.mul(b).umod(modulus)
+            const aLimbs = bnToAccumulator(a, NlengthIn32ByteLimbs.toNumber())
 
-    //         const aLimbs = bnToAccumulator(a, NlengthIn32ByteLimbs.toNumber())
-            
-    //         const bLimbs = bnToAccumulator(b, NlengthIn32ByteLimbs.toNumber())
-    //         const contractResultLimbs = await contract.modularMul(aLimbs, bLimbs, modulusLimbs);
-    //         const contractResult = accumulatorToBN(contractResultLimbs, NlengthIn32ByteLimbs.toNumber());
-    //         assert(contractResult.cmp(modulus) === -1, "Result should always be less than modulus");
-    //         assert(contractResult.eq(result), "Modular mul results are different for iteration " + j);
-    //     }
-    // })
+            const contractResultLimbs = await contract.modularMulBy4(aLimbs, modulusLimbs);
+            const contractResult = accumulatorToBN(contractResultLimbs, NlengthIn32ByteLimbs.toNumber());
+            assert(contractResult.cmp(modulus) === -1, "Result should always be less than modulus");
+            assert(contractResult.eq(result), "Intermediate mul results are different for iteration " + j);
+        }
+    })
 
-    // it('make proof and check proof', async () => {
-    //     const coinID = 1;
-    //     const x = 1; // there will be no other included coins
+    it('make proof and check proof', async () => {
+        const coinID = 1;
+        const x = 1; // there will be no other included coins
 
-    //     const NlengthIn32ByteLimbs = await contract.NlengthIn32ByteLimbs();
-    //     const initialAccumulator = await contract.accumulator(NlengthIn32ByteLimbs.toNumber() - 1)
-    //     assert(initialAccumulator.toNumber() === 3);
+        const NlengthIn32ByteLimbs = await contract.NlengthIn32ByteLimbs();
+        const initialAccumulator = await contract.accumulator(NlengthIn32ByteLimbs.toNumber() - 1)
+        assert(initialAccumulator.toNumber() === 3);
 
-    //     const coinMapping = await contract.mapCoinToPrime(coinID);
-    //     const submissionResult = await contract.includeCoin(coinID);
-    //     const updatedAccumulator = await contract.accumulator(NlengthIn32ByteLimbs.toNumber() - 1)
+        const coinMapping = await contract.mapCoinToPrime(coinID);
+        const submissionResult = await contract.includeCoin(coinID);
+        const updatedAccumulator = await contract.accumulator(NlengthIn32ByteLimbs.toNumber() - 1)
 
-    //     // this is a trivial check, for a last limb only
-    //     const expectedAccumulator = initialAccumulator.pow(coinMapping);
-    //     assert(expectedAccumulator.eq(updatedAccumulator));
+        // this is a trivial check, for a last limb only
+        const expectedAccumulator = initialAccumulator.pow(coinMapping);
+        assert(expectedAccumulator.eq(updatedAccumulator));
 
-    //     const proof = await contract.calculateProof(coinID, x);
+        const proof = await contract.calculateProof(coinID, x);
 
-    //     const isValid = await contract.checkProof(coinID, proof[0], proof[1], proof[2]);
+        const isValid = await contract.checkProof(coinID, proof[0], proof[1], proof[2]);
     
-    //     assert(isValid, "Proof is invalid");
-    // })
+        assert(isValid, "Proof is invalid");
+    })
 
     function accumulatorToBN(accumulator, numLimbs) {
         const shift = 256;

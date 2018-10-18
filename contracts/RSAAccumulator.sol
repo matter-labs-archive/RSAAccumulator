@@ -65,7 +65,7 @@ contract RSAAccumulator {
     }
 
     // this is kind of Wesolowski scheme. 'x' parameter is some exponent to show that (g^v)^x == A,
-    // where g is an old generator (before inclusion of some coin), A is a final accumulator.
+    // where g is an old accumulator (before inclusion of some coin), A is a final accumulator.
     // A proof should be just 'r' and 'b', cause 'z' in this scheme is a new accumulator itself
     function calculateProof(uint256 _coinID, uint256 x)
     public 
@@ -94,14 +94,15 @@ contract RSAAccumulator {
         uint256 B = mapHashToPrime(keccak256(abi.encodePacked(h, z))); // no mod N due to size difference
         uint256[NlengthIn32ByteLimbs] memory b_B = modularExp(b, B, nReadOnce);
         uint256[NlengthIn32ByteLimbs] memory h_R = modularExp(h, r, nReadOnce);
-        uint256[NlengthIn32ByteLimbs] memory lhs = modularMul(b_B, h_R, nReadOnce);
-        if (compare(lhs, z) != 0) {
+        uint256[NlengthIn32ByteLimbs] memory lhs = modularMul4(b_B, h_R, nReadOnce);
+        uint256[NlengthIn32ByteLimbs] memory rhs = modularMulBy4(z, nReadOnce);
+        if (compare(lhs, rhs) != 0) {
             return false;
         }
         return true;
     }
 
-    function modularMul(
+    function modularMul4(
         uint256[NlengthIn32ByteLimbs] _a,
         uint256[NlengthIn32ByteLimbs] _b,
         uint256[NlengthIn32ByteLimbs] _m)
@@ -119,6 +120,17 @@ contract RSAAccumulator {
         // }
         // c[0] = t[0] >> 2;
         // return c;
+    }
+
+    // cheat and just do two additions
+    function modularMulBy4(
+        uint256[NlengthIn32ByteLimbs] _a,
+        uint256[NlengthIn32ByteLimbs] _m)
+    public
+    view
+    returns (uint256[NlengthIn32ByteLimbs] c) {
+        uint256[NlengthIn32ByteLimbs] memory t  = modularAdd(_a, _a, _m);
+        c = modularAdd(t, t, _m);
     }
 
     function compare(
