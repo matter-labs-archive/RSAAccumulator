@@ -1,5 +1,7 @@
 pragma solidity ^0.4.25;
 
+import {PrimeTester} from "./PrimeTester.sol";
+
 contract RSAAccumulator {
     // all arithmetics is modulo N
 
@@ -12,8 +14,8 @@ contract RSAAccumulator {
     uint256[NlengthIn32ByteLimbs] public accumulator; // try to store as static array for now; In BE
     uint256[NlengthIn32ByteLimbs] public N;
 
+    PrimeTester public primeTester;
     event AccumulatorUpdated(uint256 indexed _coinID);
-    event DebugEvent(uint256 _uint, bool _bool);
     
     // constructor(uint256[NlengthIn32ByteLimbs] modulus) public {
     //     accumulator[NlengthIn32ByteLimbs - 1] = g;
@@ -21,8 +23,6 @@ contract RSAAccumulator {
     // }
 
     constructor(bytes modulus) public {
-        accumulator[NlengthIn32ByteLimbs - 1] = g;
-        emptyAccumulator[NlengthIn32ByteLimbs - 1] = g;
         require(modulus.length == NlengthInBytes, "Modulus should be at least padded");
         uint256 limb = 0;
         uint256 dataLength = 0x20; // skip length;
@@ -33,23 +33,29 @@ contract RSAAccumulator {
             N[i] = limb;
             dataLength += 0x20;
         }
+        primeTester = new PrimeTester();
     }
 
-    function updateAccumulator(uint256 _value) public {
-        accumulator = modularExp(accumulator, _value, N);
+    function updateAccumulator(
+        uint256[NlengthIn32ByteLimbs] previousAccumulator,
+        uint256 _value) 
+    public view returns (uint256[NlengthIn32ByteLimbs] newAccumulator) {
+        newAccumulator = modularExp(previousAccumulator, _value, N);
     }
 
-    function includeCoin(uint256 _coinID) public {
-        accumulator = modularExp(accumulator, mapCoinToPrime(_coinID), N);
-        emit AccumulatorUpdated(_coinID);
-    }
-
-    function mapCoinToPrime(uint256 _id) public
-    view
-    returns (uint256 prime) {
-        // Sony's way to determine randomness :)
-        return 11;
-    }
+    // function mapCoinToPrime(uint256 _id) public
+    // view
+    // returns (uint256 prime) {
+    //     // Sony's way to determine randomness :)
+    //     return 11;
+    // }
+    
+    // function mapHashToPrime(bytes32 _hash) public
+    // view
+    // returns (uint256 prime) {
+    //     // Another Sony's way to determine randomness :)
+    //     return 17;
+    // }
 
     function getN()
     public
@@ -58,50 +64,131 @@ contract RSAAccumulator {
         return N;
     }
 
-    function mapHashToPrime(bytes32 _hash) public
+
+    // // this is kind of Wesolowski scheme. 'x' parameter is some exponent to show that 
+    // // where g is an old accumulator (before inclusion of some coin), A is a final accumulator.
+    // // A proof should be just 'r' and 'b', cause 'z' in this scheme is a new accumulator itself
+    // function calculateProofWes(uint256 _coinID, uint256 x)
+    // public 
+    // view 
+    // returns (uint256[NlengthIn32ByteLimbs] b, uint256[NlengthIn32ByteLimbs] z, uint256 r) {
+    //     uint256[NlengthIn32ByteLimbs] memory nReadOnce = N;
+    //     uint256[NlengthIn32ByteLimbs] memory h = modularExp(emptyAccumulator, mapCoinToPrime(_coinID), nReadOnce);
+    //     z = modularExp(h, x, nReadOnce);
+    //     uint256 B = mapHashToPrime(keccak256(abi.encodePacked(h, z)));
+    //     uint256 exp = x / B;
+    //     b = modularExp(h, exp, nReadOnce);
+    //     r = x % B;
+    // }
+
+    // // vefity proof is Wesolowski scheme. Modular multiplication is not yet implemented, so proof can not be checked
+    // function checkProofWes(
+    //     uint256 _coinID,
+    //     uint256[NlengthIn32ByteLimbs] b, 
+    //     uint256[NlengthIn32ByteLimbs] z, 
+    //     uint256 r)
+    // public 
+    // view 
+    // returns (bool isValid) {
+    //     uint256[NlengthIn32ByteLimbs] memory nReadOnce = N;
+    //     uint256[NlengthIn32ByteLimbs] memory h = modularExp(emptyAccumulator, mapCoinToPrime(_coinID), nReadOnce);
+    //     uint256 B = mapHashToPrime(keccak256(abi.encodePacked(h, z))); // no mod N due to size difference
+    //     uint256[NlengthIn32ByteLimbs] memory b_B = modularExp(b, B, nReadOnce);
+    //     uint256[NlengthIn32ByteLimbs] memory h_R = modularExp(h, r, nReadOnce);
+    //     uint256[NlengthIn32ByteLimbs] memory lhs = modularMul4(b_B, h_R, nReadOnce);
+    //     uint256[NlengthIn32ByteLimbs] memory rhs = modularMulBy4(z, nReadOnce);
+    //     if (compare(lhs, rhs) != 0) {
+    //         return false;
+    //     }
+    //     return true;
+    // }
+
+    // check that (g^w)^x = A
+    // assume that all primes are valid, etc
+    function checkInclusionProof(
+        uint64 prime,
+        uint256[] witnessLimbs,
+        uint256[NlengthIn32ByteLimbs] initialAccumulator,
+        uint256[NlengthIn32ByteLimbs] finalAccumulator
+    )
+    public
     view
-    returns (uint256 prime) {
-        // Another Sony's way to determine randomness :)
-        return 17;
-    }
-
-    // this is kind of Wesolowski scheme. 'x' parameter is some exponent to show that (g^v)^x == A,
-    // where g is an old accumulator (before inclusion of some coin), A is a final accumulator.
-    // A proof should be just 'r' and 'b', cause 'z' in this scheme is a new accumulator itself
-    function calculateProof(uint256 _coinID, uint256 x)
-    public 
-    view 
-    returns (uint256[NlengthIn32ByteLimbs] b, uint256[NlengthIn32ByteLimbs] z, uint256 r) {
+    returns (bool isValue) {
         uint256[NlengthIn32ByteLimbs] memory nReadOnce = N;
-        uint256[NlengthIn32ByteLimbs] memory h = modularExp(emptyAccumulator, mapCoinToPrime(_coinID), nReadOnce);
-        z = modularExp(h, x, nReadOnce);
-        uint256 B = mapHashToPrime(keccak256(abi.encodePacked(h, z)));
-        uint256 exp = x / B;
-        b = modularExp(h, exp, nReadOnce);
-        r = x % B;
-    }
-
-    // vefity proof is Wesolowski scheme. Modular multiplication is not yet implemented, so proof can not be checked
-    function checkProof(
-        uint256 _coinID,
-        uint256[NlengthIn32ByteLimbs] b, 
-        uint256[NlengthIn32ByteLimbs] z, 
-        uint256 r)
-    public 
-    view 
-    returns (bool isValid) {
-        uint256[NlengthIn32ByteLimbs] memory nReadOnce = N;
-        uint256[NlengthIn32ByteLimbs] memory h = modularExp(emptyAccumulator, mapCoinToPrime(_coinID), nReadOnce);
-        uint256 B = mapHashToPrime(keccak256(abi.encodePacked(h, z))); // no mod N due to size difference
-        uint256[NlengthIn32ByteLimbs] memory b_B = modularExp(b, B, nReadOnce);
-        uint256[NlengthIn32ByteLimbs] memory h_R = modularExp(h, r, nReadOnce);
-        uint256[NlengthIn32ByteLimbs] memory lhs = modularMul4(b_B, h_R, nReadOnce);
-        uint256[NlengthIn32ByteLimbs] memory rhs = modularMulBy4(z, nReadOnce);
+        uint256[NlengthIn32ByteLimbs] memory lhs = modularExpVariableLength(initialAccumulator, witnessLimbs, nReadOnce);
+        lhs = modularMul4(lhs, finalAccumulator, nReadOnce);
+        // extra factor of 4 on the LHS
+        uint256 extraFactorsOf4 = 0;
+        uint256 i = 0;
+        uint256 primesLength = primes.length;
+        uint256 multiplicationResult = 1;
+        uint256[NlengthIn32ByteLimbs] memory rhs;
+        uint256 numBatches = (primesLength / 4);
+        for (i = 1; i <= primesLength % 4; i++) {
+            multiplicationResult = multiplicationResult * uint256(primes[primesLength - i]);
+            rhs = modularMulBy4(modularExp(initialAccumulator, multiplicationResult, nReadOnce), nReadOnce);
+            // extra factor of 4 on LHS is compensated
+        }
+        for (i = 0; i < numBatches; i++) {
+            multiplicationResult = uint256(primes[4*i]) * uint256(primes[4*i + 1]) + uint256(primes[4*i + 2]) + uint256(primes[4*i + 3]);
+            rhs = modularMul4(rhs, modularExp(initialAccumulator, multiplicationResult, nReadOnce), nReadOnce);
+            extraFactorsOf4++;
+            // each round brings extra factor of 4 on RHS
+        }
+        for (i = 0; i < extraFactorsOf4; i++) {
+            // extra factors of 4 on RHS are compensated
+            lhs = modularMulBy4(lhs, nReadOnce);
+        }
         if (compare(lhs, rhs) != 0) {
             return false;
         }
         return true;
     }
+
+    // check that A*(g^v) = g^(x1*x2*...*xn)
+    // assume that all primes are valid, etc
+    function checkNonInclusionProof(
+        uint64[] primes,
+        uint256[] witnessLimbs,
+        uint256[NlengthIn32ByteLimbs] initialAccumulator,
+        uint256[NlengthIn32ByteLimbs] finalAccumulator
+    )
+    public
+    view
+    returns (bool isValue) {
+        require(primes.length >= 1, "Primes list must not be empty");
+        uint256[NlengthIn32ByteLimbs] memory nReadOnce = N;
+        uint256[NlengthIn32ByteLimbs] memory lhs = modularExpVariableLength(initialAccumulator, witnessLimbs, nReadOnce);
+        lhs = modularMul4(lhs, finalAccumulator, nReadOnce);
+        // extra factor of 4 on the LHS
+        uint256 extraFactorsOf4 = 0;
+        uint256 i = 0;
+        uint256 primesLength = primes.length;
+        uint256 multiplicationResult = 1;
+        uint256[NlengthIn32ByteLimbs] memory rhs;
+        uint256 numBatches = (primesLength / 4);
+        for (i = 1; i <= primesLength % 4; i++) {
+            multiplicationResult = multiplicationResult * uint256(primes[primesLength - i]);
+            rhs = modularMulBy4(modularExp(initialAccumulator, multiplicationResult, nReadOnce), nReadOnce);
+            // extra factor of 4 on LHS is compensated
+        }
+        for (i = 0; i < numBatches; i++) {
+            multiplicationResult = uint256(primes[4*i]) * uint256(primes[4*i + 1]) + uint256(primes[4*i + 2]) + uint256(primes[4*i + 3]);
+            rhs = modularMul4(rhs, modularExp(initialAccumulator, multiplicationResult, nReadOnce), nReadOnce);
+            extraFactorsOf4++;
+            // each round brings extra factor of 4 on RHS
+        }
+        for (i = 0; i < extraFactorsOf4; i++) {
+            // extra factors of 4 on RHS are compensated
+            lhs = modularMulBy4(lhs, nReadOnce);
+        }
+        if (compare(lhs, rhs) != 0) {
+            return false;
+        }
+        return true;
+    }
+
+
 
     function modularMul4(
         uint256[NlengthIn32ByteLimbs] _a,
@@ -121,7 +208,7 @@ contract RSAAccumulator {
         uint256[NlengthIn32ByteLimbs] _a,
         uint256[NlengthIn32ByteLimbs] _m)
     public
-    view
+    pure
     returns (uint256[NlengthIn32ByteLimbs] c) {
         uint256[NlengthIn32ByteLimbs] memory t = modularAdd(_a, _a, _m);
         c = modularAdd(t, t, _m);
@@ -131,7 +218,7 @@ contract RSAAccumulator {
         uint256[NlengthIn32ByteLimbs] _a, 
         uint256[NlengthIn32ByteLimbs] _b)
     public
-    view
+    pure
     returns (int256 result) {
         for (uint256 i = 0; i < NlengthIn32ByteLimbs; i++) {
             if (_a[i] > _b[i]) {
@@ -148,7 +235,7 @@ contract RSAAccumulator {
         uint256[NlengthIn32ByteLimbs] _b
     )
     public
-    view 
+    pure 
     returns (uint256[NlengthIn32ByteLimbs] o) {
         bool borrow = false;
         uint256 limb = 0;
@@ -181,7 +268,7 @@ contract RSAAccumulator {
         uint256[NlengthIn32ByteLimbs] _b
     )
     public
-    view 
+    pure 
     returns (uint256[NlengthIn32ByteLimbs] o) {
         bool carry = false;
         uint256 limb = 0;
@@ -216,7 +303,7 @@ contract RSAAccumulator {
         uint256[NlengthIn32ByteLimbs] _b,
         uint256[NlengthIn32ByteLimbs] _m)
     public
-    view 
+    pure 
     returns (uint256[NlengthIn32ByteLimbs] o) {
         int256 comparison = compare(_a, _b);
         if (comparison == 0) {
@@ -234,7 +321,7 @@ contract RSAAccumulator {
         uint256[NlengthIn32ByteLimbs] _b,
         uint256[NlengthIn32ByteLimbs] _m)
     public
-    view 
+    pure 
     returns (uint256[NlengthIn32ByteLimbs] o) {
         uint256[NlengthIn32ByteLimbs] memory space = wrappingSub(_m, _a);
         // see how much "space" has left before an overflow
@@ -280,6 +367,70 @@ contract RSAAccumulator {
             mstore(add(memoryPointer, dataLength), e)     // Put exponent
         }
         dataLength += 0x20;
+
+        for (i = 0; i < NlengthIn32ByteLimbs; i++) {
+            limb = m[i];
+            assembly {
+                mstore(add(memoryPointer, dataLength), limb)  // cycle over base
+            }
+            dataLength += 0x20;
+        }
+        // do the call
+        assembly {
+            let success := staticcall(sub(gas, 2000), 0x05, memoryPointer, dataLength, memoryPointer, modulusLength) // here we overwrite!
+            // gas fiddling
+            switch success case 0 {
+                revert(0, 0)
+            }
+        }
+        dataLength = 0;
+        limb = 0;
+        for (i = 0; i < NlengthIn32ByteLimbs; i++) {
+            assembly {
+                limb := mload(add(memoryPointer, dataLength))
+            }
+            dataLength += 0x20;
+            output[i] = limb;
+        }
+        return output;
+    }
+
+    // this assumes that exponent in never larger than 256 bits
+    function modularExpVariableLength(
+        uint256[NlengthIn32ByteLimbs] base, 
+        uint256[] e, 
+        uint256[NlengthIn32ByteLimbs] m) 
+    public view returns (uint256[NlengthIn32ByteLimbs] output) {
+        uint256 modulusLength = NlengthInBytes;
+        uint256 memoryPointer = 0;
+        uint256 dataLength = 0;
+        uint256 exponentLimbs = e.length;
+        assembly {
+            // define pointer
+            memoryPointer := mload(0x40)
+            // store data assembly-favouring ways
+            mstore(memoryPointer, modulusLength)    // Length of Base
+            mstore(add(memoryPointer, 0x20), mul(exponentLimbs, 0x20))  // Length of Exponent
+            mstore(add(memoryPointer, 0x40), modulusLength)  // Length of Modulus
+        }
+        dataLength = 0x60;
+        // now properly pack bases, etc
+        uint256 limb = 0;
+        for (uint256 i = 0; i < NlengthIn32ByteLimbs; i++) {
+            limb = base[i];
+            assembly {
+                mstore(add(memoryPointer, dataLength), limb)  // cycle over base
+            }
+            dataLength += 0x20;
+        }
+
+        for (i = 0; i < exponentLimbs; i++) {
+            limb = e[i];
+            assembly {
+                mstore(add(memoryPointer, dataLength), limb)  // cycle over exponent
+            }
+            dataLength += 0x20;
+        }
 
         for (i = 0; i < NlengthIn32ByteLimbs; i++) {
             limb = m[i];
