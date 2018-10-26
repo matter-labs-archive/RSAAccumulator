@@ -25,15 +25,15 @@ For understanding how it works from the Vitalik's [post](https://ethresear.ch/t/
 
 **Inclusion proof**
 
-Exponentiations below are mod N
+Exponentiations below are `mod N`.
 
 One wants to prove that `(g^w)^x == A`, where `g` is an old accumulator for this block (where inclusion happens), `x` is an included value (mapping of coin ID to prime), `w` is a witness, `A` is a new accumulator. `g`, `A` and `x` are publically known, so for a membership proof one would have to supply `w`, because supplying `g^w` is not enough since it hides `g`. For a calculation of `w` one would have to mupliply all other included indexes in this block, that is potentially unbounded (there is no "modulo" operation in the exponent, cause we don't know decomposition of `N`).
 
 **Non-inclusion proofs**
 
-One wants to prove that some ID or a banch of indexes was not included. Keeping the same notations it's `A*(g^v) = g^(x1*x2*...*xn)` where `g` and `A` are old and new accumulators accordingly ("old" and new here may be over some range of blocks,may be better wording would be "initial" and "final"), `v` is a part of the proof, some potentially unbounded number. `x1, x2, ..., xn` are non-included values (primes).
+One wants to prove that some ID or a banch of indexes was not included. Keeping the same notations it's `A*(g^r) = g^(x1*x2*...*xn)^cofactor` where `g` and `A` are old and new accumulators accordingly ("old" and new here may be over some range of blocks,may be better wording would be "initial" and "final"), `r` and `cofactor` are parts of the proof, some potentially unbounded numbers with an exception `r < (x1*x2*...*xn)`. `x1, x2, ..., xn` are non-included values (primes).
 
-The problem with this scheme is the following: while `x1, x2, ..., xn` should be listed separately when proof is verified on-chain, their multiplication result is potentially unbounded in length (there is no "modulo" operation in the exponent, cause we don't know decomposition of `N`). Same is for `v`.
+The problem with this scheme is the following: while `x1, x2, ..., xn` should be listed separately when proof is verified on-chain, their multiplication result is potentially unbounded in length (there is no "modulo" operation in the exponent, cause we don't know decomposition of `N`). Same is for `cofactor` and `r`.
 
 Down to technical level long multiplication `x1*x2*...*xn` should happen on-chain, that is not trivial to implementdue to no modular reduction and absence of such precompile.
 

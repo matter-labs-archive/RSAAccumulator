@@ -35,12 +35,16 @@ contract('Plasma Cash mockup', async (accounts) => {
 
             const inclusion = await plasma.checkInclusionProof(3, [1], initialAccumulatorLimbs, finalAccumulatorLimbs)
             assert(inclusion);
+            const gas = await plasma.checkInclusionProof.estimateGas(3, [1], initialAccumulatorLimbs, finalAccumulatorLimbs)
+            console.log("Signle inclusion proof is at least " + gas + " gas")
     })
 
-    it('update and prove non-inclusion', async () => {
+    it('update and prove single non-inclusion in classical equation', async () => {
         const NlengthIn32ByteLimbs = await accumulator.NlengthIn32ByteLimbs();
         const modulusLength = NlengthIn32ByteLimbs.toNumber() * 32
-        const a = new BN(3) // prime index to include
+        const aIncl = new BN(3) // prime index to include
+        // const bIncl = new BN(5) // include this one too
+        const cNonincl = new BN(7)
         const modulusLimbs = await accumulator.getN();
         const modulus = accumulatorToBN(modulusLimbs, NlengthIn32ByteLimbs.toNumber());
 
@@ -48,15 +52,147 @@ contract('Plasma Cash mockup', async (accounts) => {
         const initialAccumulatorLimbs = await plasma.getAccumulatorForBlock(initialBlock);
         const initialAccumulator = accumulatorToBN(initialAccumulatorLimbs, NlengthIn32ByteLimbs.toNumber());
 
-        await plasma.updateAccumulator([a]);
+        await plasma.updateAccumulator([aIncl]);
+        // await plasma.updateAccumulator([bIncl]);
 
         const finalBlock = await plasma.lastBlock();
         const finalAccumulatorLimbs = await plasma.getAccumulatorForBlock(finalBlock);
         const finalAccumulator = accumulatorToBN(finalAccumulatorLimbs, NlengthIn32ByteLimbs.toNumber());
 
-        const inclusion = await plasma.checkInclusionProof(3, [1], initialAccumulatorLimbs, finalAccumulatorLimbs)
-        assert(inclusion);
-})
+        let aInitial = new BN(1);
+        let dInitial = new BN(1);
+
+        let {a, d} = updateWitness(aInitial, dInitial, cNonincl, {x: aIncl, c: initialAccumulator, N: modulus})
+
+        // check equation
+
+        // c^a = d^x*g
+
+        const red = BN.red(modulus)
+
+        const lhs = finalAccumulator.toRed(red).redPow(a).fromRed()
+        const rhs = d.toRed(red).redPow(cNonincl).redMul(initialAccumulator.toRed(red)).fromRed()
+
+        assert(lhs.eq(rhs));
+    })
+
+    it('update and prove single non-inclusion', async () => {
+        const NlengthIn32ByteLimbs = await accumulator.NlengthIn32ByteLimbs();
+        const modulusLength = NlengthIn32ByteLimbs.toNumber() * 32
+        const aIncl = new BN(3) // prime index to include
+        const bIncl = new BN(5) // include this one too
+        const cNonincl = new BN(7)
+        const dIncl = new BN(11)
+        const modulusLimbs = await accumulator.getN();
+        const modulus = accumulatorToBN(modulusLimbs, NlengthIn32ByteLimbs.toNumber());
+
+        const initialBlock = await plasma.lastBlock();
+        const initialAccumulatorLimbs = await plasma.getAccumulatorForBlock(initialBlock);
+        const initialAccumulator = accumulatorToBN(initialAccumulatorLimbs, NlengthIn32ByteLimbs.toNumber());
+
+        await plasma.updateAccumulator([aIncl]);
+        await plasma.updateAccumulator([bIncl]);
+        await plasma.updateAccumulator([dIncl]);
+
+        const finalBlock = await plasma.lastBlock();
+        const finalAccumulatorLimbs = await plasma.getAccumulatorForBlock(finalBlock);
+        const finalAccumulator = accumulatorToBN(finalAccumulatorLimbs, NlengthIn32ByteLimbs.toNumber());
+
+        const exponent = aIncl.mul(bIncl).mul(dIncl)
+        assert(exponent.toNumber() == 165)
+        const cofactor = exponent.div(cNonincl).addn(1)
+        assert(cofactor.toNumber() == 24)
+        const r = cNonincl.sub(exponent.umod(cNonincl))
+        assert(r.toNumber() == 3)
+
+
+        // check equation
+
+        // A*(g^r) = g^(x1*x2*...*xn)^cofactor
+
+        const red = BN.red(modulus)
+
+        const lhs = finalAccumulator.toRed(red).redMul(initialAccumulator.toRed(red).redPow(r)).fromRed()
+        const rhs = initialAccumulator.toRed(red).redPow(cNonincl).redPow(cofactor).fromRed()
+
+        assert(lhs.eq(rhs));
+    })
+
+    it('update and prove single non-inclusion on contract', async () => {
+        const NlengthIn32ByteLimbs = await accumulator.NlengthIn32ByteLimbs();
+        const modulusLength = NlengthIn32ByteLimbs.toNumber() * 32
+        const aIncl = new BN(3) // prime index to include
+        const bIncl = new BN(5) // include this one too
+        const cNonincl = new BN(7)
+        const dIncl = new BN(11)
+        const modulusLimbs = await accumulator.getN();
+        const modulus = accumulatorToBN(modulusLimbs, NlengthIn32ByteLimbs.toNumber());
+
+        const initialBlock = await plasma.lastBlock();
+        const initialAccumulatorLimbs = await plasma.getAccumulatorForBlock(initialBlock);
+        const initialAccumulator = accumulatorToBN(initialAccumulatorLimbs, NlengthIn32ByteLimbs.toNumber());
+
+        await plasma.updateAccumulator([aIncl]);
+        await plasma.updateAccumulator([bIncl]);
+        await plasma.updateAccumulator([dIncl]);
+
+        const finalBlock = await plasma.lastBlock();
+        const finalAccumulatorLimbs = await plasma.getAccumulatorForBlock(finalBlock);
+        const finalAccumulator = accumulatorToBN(finalAccumulatorLimbs, NlengthIn32ByteLimbs.toNumber());
+
+        const exponent = aIncl.mul(bIncl).mul(dIncl)
+        assert(exponent.toNumber() == 165)
+        const cofactor = exponent.div(cNonincl).addn(1)
+        assert(cofactor.toNumber() == 24)
+        const r = cNonincl.sub(exponent.umod(cNonincl))
+        assert(r.toNumber() == 3)
+
+        const nonIncluded = await plasma.checkNonInclusionProof([cNonincl], [r], [cofactor], initialAccumulatorLimbs, finalAccumulatorLimbs);
+        assert(nonIncluded);
+
+        const gas = await plasma.checkNonInclusionProof.estimateGas([cNonincl], [r], [cofactor], initialAccumulatorLimbs, finalAccumulatorLimbs);
+        console.log("Signle non-inclusion proof is at least " + gas + " gas")
+    })
+
+    it('update and prove non-inclusion for two elements on contract', async () => {
+        const NlengthIn32ByteLimbs = await accumulator.NlengthIn32ByteLimbs();
+        const modulusLength = NlengthIn32ByteLimbs.toNumber() * 32
+        const aIncl = new BN(3) // prime index to include
+        const bIncl = new BN(5) // include this one too
+        const cNonincl = new BN(7)
+        const dNonincl = new BN(11)
+        const modulusLimbs = await accumulator.getN();
+        const modulus = accumulatorToBN(modulusLimbs, NlengthIn32ByteLimbs.toNumber());
+
+        const initialBlock = await plasma.lastBlock();
+        const initialAccumulatorLimbs = await plasma.getAccumulatorForBlock(initialBlock);
+        const initialAccumulator = accumulatorToBN(initialAccumulatorLimbs, NlengthIn32ByteLimbs.toNumber());
+
+        await plasma.updateAccumulator([aIncl]);
+        await plasma.updateAccumulator([bIncl]);
+
+        const finalBlock = await plasma.lastBlock();
+        const finalAccumulatorLimbs = await plasma.getAccumulatorForBlock(finalBlock);
+        const finalAccumulator = accumulatorToBN(finalAccumulatorLimbs, NlengthIn32ByteLimbs.toNumber());
+
+        const exponent = aIncl.mul(bIncl)
+        const nonincludedExponent = cNonincl.mul(dNonincl)
+        const cofactor = exponent.div(nonincludedExponent).addn(1)
+        const r = nonincludedExponent.sub(exponent.umod(nonincludedExponent))
+
+        const red = BN.red(modulus)
+
+        const lhs = finalAccumulator.toRed(red).redMul(initialAccumulator.toRed(red).redPow(r)).fromRed()
+        const rhs = initialAccumulator.toRed(red).redPow(nonincludedExponent).redPow(cofactor).fromRed()
+
+        assert(lhs.eq(rhs));
+
+        const nonIncluded = await plasma.checkNonInclusionProof([cNonincl, dNonincl], [r], [cofactor], initialAccumulatorLimbs, finalAccumulatorLimbs);
+        assert(nonIncluded);
+
+        const gas = await plasma.checkNonInclusionProof.estimateGas([cNonincl, dNonincl], [r], [cofactor], initialAccumulatorLimbs, finalAccumulatorLimbs);
+        console.log("Non-inclusion proof for two elements is at least " + gas + " gas")
+    })
 
     function accumulatorToBN(accumulator, numLimbs) {
         const shift = 256;
@@ -82,6 +218,15 @@ contract('Plasma Cash mockup', async (accounts) => {
             reversedAccumulator.push(limb);
         }
         return reversedAccumulator.reverse();
+    }
+
+    function updateWitness(a, d, y, {x, c, N}) {
+        const red = BN.red(N)
+        const z = x.invm(y)
+        const aPrime = a.mul(z)
+        const exponent = x.mul(z).subn(1).mul(a).div(y)
+        const dPrime = c.toRed(red).redPow(exponent).fromRed().mul(d)
+        return {a: aPrime, d: dPrime}
     }
 
     function findFirstDiffPos(a, b) {

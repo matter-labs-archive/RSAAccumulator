@@ -130,11 +130,12 @@ contract RSAAccumulator {
         return true;
     }
 
-    // check that A*(g^v) = g^(x1*x2*...*xn)
+    // check that A*(g^r) = g^(x1*x2*...*xn)^cofactor
     // assume that all primes are valid, etc
     function checkNonInclusionProof(
         uint64[] primes,
-        uint256[] witnessLimbs,
+        uint256[] rLimbs,
+        uint256[] cofactorLimbs,
         uint256[NlengthIn32ByteLimbs] initialAccumulator,
         uint256[NlengthIn32ByteLimbs] finalAccumulator
     )
@@ -143,37 +144,29 @@ contract RSAAccumulator {
     returns (bool isValue) {
         require(primes.length >= 1, "Primes list must not be empty");
         uint256[NlengthIn32ByteLimbs] memory nReadOnce = N;
-        uint256[NlengthIn32ByteLimbs] memory lhs = modularExpVariableLength(initialAccumulator, witnessLimbs, nReadOnce);
+        uint256[NlengthIn32ByteLimbs] memory lhs = modularExpVariableLength(initialAccumulator, rLimbs, nReadOnce);
         lhs = modularMul4(lhs, finalAccumulator, nReadOnce);
         // extra factor of 4 on the LHS
-        uint256 extraFactorsOf4 = 0;
         uint256 i = 0;
         uint256 primesLength = primes.length;
         uint256 multiplicationResult = 1;
-        uint256[NlengthIn32ByteLimbs] memory rhs;
+        uint256[NlengthIn32ByteLimbs] memory rhs = modularExpVariableLength(initialAccumulator, cofactorLimbs, nReadOnce);
         uint256 numBatches = (primesLength / 4);
         for (i = 1; i <= primesLength % 4; i++) {
             multiplicationResult = multiplicationResult * uint256(primes[primesLength - i]);
-            rhs = modularMulBy4(modularExp(initialAccumulator, multiplicationResult, nReadOnce), nReadOnce);
-            // extra factor of 4 on LHS is compensated
         }
+        rhs = modularExp(rhs, multiplicationResult, nReadOnce);
         for (i = 0; i < numBatches; i++) {
             multiplicationResult = uint256(primes[4*i]) * uint256(primes[4*i + 1]) + uint256(primes[4*i + 2]) + uint256(primes[4*i + 3]);
-            rhs = modularMul4(rhs, modularExp(initialAccumulator, multiplicationResult, nReadOnce), nReadOnce);
-            extraFactorsOf4++;
-            // each round brings extra factor of 4 on RHS
+            rhs = modularExp(rhs, multiplicationResult, nReadOnce);
         }
-        for (i = 0; i < extraFactorsOf4; i++) {
-            // extra factors of 4 on RHS are compensated
-            lhs = modularMulBy4(lhs, nReadOnce);
-        }
+        rhs = modularMulBy4(rhs, nReadOnce);
+        // extra factor of 4 on LHS is compensated
         if (compare(lhs, rhs) != 0) {
             return false;
         }
         return true;
     }
-
-
 
     function modularMul4(
         uint256[NlengthIn32ByteLimbs] _a,

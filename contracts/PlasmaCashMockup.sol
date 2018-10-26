@@ -51,14 +51,15 @@ contract PlasmaCashMockup {
 
     function checkNonInclusionProof(
         uint64[] primes,
-        uint256[] witnessLimbs,
+        uint256[] rLimbs,
+        uint256[] cofactorLimbs,
         uint256[NlengthIn32ByteLimbs] initialAccumulator,
         uint256[NlengthIn32ByteLimbs] finalAccumulator
     )
     public
     view
     returns (bool isValue) {
-        return rsaAccumulator.checkNonInclusionProof(primes, witnessLimbs, initialAccumulator, finalAccumulator);
+        return rsaAccumulator.checkNonInclusionProof(primes, rLimbs, cofactorLimbs, initialAccumulator, finalAccumulator);
     }
 
 }
