@@ -11,8 +11,9 @@ contract PlasmaCashMockup {
     uint256 constant public NlengthInBytes = 32 * NlengthIn32ByteLimbs;
     uint256 constant public NLength = NlengthIn32ByteLimbs * 8 * 32;
     uint256 constant public g = 3;
+    uint64 public lastBlock = 0;
 
-    mapping(uint64 => uint256[NlengthIn32ByteLimbs]) public blockAccumulators; // try to store as static array for now; In BE
+    mapping(uint64 => uint256[NlengthIn32ByteLimbs]) blockAccumulators; // try to store as static array for now; In BE
 
     constructor(address _accumulator)
     public
@@ -21,12 +22,43 @@ contract PlasmaCashMockup {
         rsaAccumulator = RSAAccumulator(_accumulator);
     }
 
-    function updateAccumulator(
-        uint256[NlengthIn32ByteLimbs] previousAccumulator,
-        uint256 _value) 
-        public view returns (uint256[NlengthIn32ByteLimbs] newAccumulator) {
-        newAccumulator = modularExp(previousAccumulator, _value, N);
+    function getAccumulatorForBlock(uint64 blockNumber)
+    public
+    view
+    returns (uint256[NlengthIn32ByteLimbs] accum) {
+        accum = blockAccumulators[blockNumber];
     }
 
+    function updateAccumulator(
+        uint256[] _limbs) 
+    public {
+        blockAccumulators[lastBlock + 1] = rsaAccumulator.updateAccumulatorMultiple(blockAccumulators[lastBlock], _limbs);
+        lastBlock++;
+    }
+
+
+    function checkInclusionProof(
+        uint64 prime,
+        uint256[] witnessLimbs,
+        uint256[NlengthIn32ByteLimbs] initialAccumulator,
+        uint256[NlengthIn32ByteLimbs] finalAccumulator
+    )
+    public
+    view
+    returns (bool isValue) {
+        return rsaAccumulator.checkInclusionProof(prime, witnessLimbs, initialAccumulator, finalAccumulator);
+    }
+
+    function checkNonInclusionProof(
+        uint64[] primes,
+        uint256[] witnessLimbs,
+        uint256[NlengthIn32ByteLimbs] initialAccumulator,
+        uint256[NlengthIn32ByteLimbs] finalAccumulator
+    )
+    public
+    view
+    returns (bool isValue) {
+        return rsaAccumulator.checkNonInclusionProof(primes, witnessLimbs, initialAccumulator, finalAccumulator);
+    }
 
 }

@@ -285,28 +285,28 @@ contract('RSA accumulator', async (accounts) => {
         }
     })
 
-    it('make proof and check proof', async () => {
-        const coinID = 1;
-        const x = 1; // there will be no other included coins
+    // it('make proof and check proof', async () => {
+    //     const coinID = 1;
+    //     const x = 1; // there will be no other included coins
 
-        const NlengthIn32ByteLimbs = await contract.NlengthIn32ByteLimbs();
-        const initialAccumulator = await contract.accumulator(NlengthIn32ByteLimbs.toNumber() - 1)
-        assert(initialAccumulator.toNumber() === 3);
+    //     const NlengthIn32ByteLimbs = await contract.NlengthIn32ByteLimbs();
+    //     const initialAccumulator = await contract.accumulator(NlengthIn32ByteLimbs.toNumber() - 1)
+    //     assert(initialAccumulator.toNumber() === 3);
 
-        const coinMapping = await contract.mapCoinToPrime(coinID);
-        const submissionResult = await contract.includeCoin(coinID);
-        const updatedAccumulator = await contract.accumulator(NlengthIn32ByteLimbs.toNumber() - 1)
+    //     const coinMapping = await contract.mapCoinToPrime(coinID);
+    //     const submissionResult = await contract.includeCoin(coinID);
+    //     const updatedAccumulator = await contract.accumulator(NlengthIn32ByteLimbs.toNumber() - 1)
 
-        // this is a trivial check, for a last limb only
-        const expectedAccumulator = initialAccumulator.pow(coinMapping);
-        assert(expectedAccumulator.eq(updatedAccumulator));
+    //     // this is a trivial check, for a last limb only
+    //     const expectedAccumulator = initialAccumulator.pow(coinMapping);
+    //     assert(expectedAccumulator.eq(updatedAccumulator));
 
-        const proof = await contract.calculateProof(coinID, x);
+    //     const proof = await contract.calculateProof(coinID, x);
 
-        const isValid = await contract.checkProof(coinID, proof[0], proof[1], proof[2]);
+    //     const isValid = await contract.checkProof(coinID, proof[0], proof[1], proof[2]);
     
-        assert(isValid, "Proof is invalid");
-    })
+    //     assert(isValid, "Proof is invalid");
+    // })
 
     function accumulatorToBN(accumulator, numLimbs) {
         const shift = 256;
